@@ -18,7 +18,13 @@ main(void)
     O_Json j = json_load(f);
     fclose(f);
 
-    json_delete(j.json);
+    if(j.is_value == true)
+    {
+        json_delete(j.json);
+        printf("loaded\n");
+    }
+    else
+        printf("error\n");
 
     /*
     if(j.is_value == true 

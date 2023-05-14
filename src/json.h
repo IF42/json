@@ -19,6 +19,8 @@ typedef struct
 }JsonPair;
 
 
+
+
 typedef struct Json
 {
     enum JsonID
@@ -26,6 +28,7 @@ typedef struct Json
         JsonInteger
         , JsonFrac
         , JsonBool
+        , JsonNull
         , JsonString
         , JsonArray
         , JsonObject
