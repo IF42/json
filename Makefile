@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -pedantic -std=c2x -Ofast
-LIBS=
+LIBS=-lvector
 
 INCLUDE_PATH=/usr/include/
 LIB_PATH=/usr/lib64/

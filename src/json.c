@@ -1,25 +1,13 @@
 /*
 ** @file json.c
 ** @author Petr Horáček
-**
-** json      ::= object | array
-** object    ::= "{" (pair ("," pair)*)? "}"
-** pair      ::= string ":" value
-** array     ::= "[" (value ("," value)*)? "]"
-** value     ::= string | number | object | array | "true" | "false" | "null"
-** string    ::= '"' char* '"'
-** number    ::= int frac? exp?
-** int       ::= digit | digit1-9 digits
-** frac      ::= "." digits
-** exp       ::= ("e" | "E") ("+" | "-")? digits
-** digits    ::= digit*
-** digit     ::= "0" | digit1-9
 */
 
 #include "json.h"
 #include <stdint.h>
 #include <ctype.h>
-#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 
 #define JSON_NO_EXPORT static
@@ -31,7 +19,6 @@ typedef struct
     size_t index;
     uint32_t row;
     uint32_t column;
-
     char character;
 }LexerState;
 
@@ -59,8 +46,7 @@ __advance__(Lexer * self)
 {
     if(__char__(self) == '\0')
         return;
-
-    if(__char__(self) == '\n')
+    else if(__char__(self) == '\n')
     {
         self->state.row ++;
         self->state.column = 1;
@@ -68,7 +54,7 @@ __advance__(Lexer * self)
     else
         self->state.column ++;
 
-    self->state.character = self->code[self->state.index++];
+    self->state.character = self->code[++self->state.index];
 }
 
 
@@ -110,63 +96,33 @@ typedef enum
 }TokenID;
 
 
-#define TOKEN_ID(T)                             \
-    T == TokenID_Keyword ? "TokenID_Keyword":   \
-    T == TokenID_String  ? "TokenID_String":    \
-    T == TokenID_Integer ? "TokenID_Decimal":   \
-    T == TokenID_Exp     ? "TokenID_Exp":       \
-    T == TokenID_Symbol  ? "TokenID_Symbol":    \
-    T == TokenID_EOF     ? "TokenID_EOF":       \
-                           "Unknown"    
-
 typedef struct
 {
     TokenID id;
-    size_t length;
-    char * value;    
+    size_t  length;
+    char *  value;    
 }Token;
 
 
 #define Token(...) (Token){__VA_ARGS__}
  
 
-typedef enum
-{
-    LexerError_OK
-    , LexerError_UnexpectedToken
-    , LexerError_DecimaFormat
-}LexerError_ID;
-
-
 typedef struct
 {
-    LexerError_ID error;
-    uint32_t row;
-    uint32_t column;
-}LexerError;
+    bool is_value;
+    Token token;
+}O_Token;
 
 
-#define LexerError(...) {__VA_ARGS__}
+#define O_Token_Nothing (O_Token){false}
+#define O_Token_Value(T) (O_Token){true, T}
 
 
-typedef struct
+JSON_INLINE_NO_EXPORT char *
+__ref__(Lexer * self)
 {
-    enum{E_TokenID_Left, E_TokenID_Right}id;
-
-    union
-    {
-        Token left;
-        LexerError right;
-    };
-}E_Token;
-
-
-#define E_Token_Left(token) \
-    (E_Token){.id = E_TokenID_Left, .left = token}
-
-
-#define E_Token_Right(error) \
-    (E_Token){.id = E_TokenID_Right, .right = error}
+    return &self->code[self->state.index];
+}
 
 
 JSON_INLINE_NO_EXPORT void
@@ -177,12 +133,12 @@ __skip_whitespace__(Lexer * self)
 }
 
 
-JSON_INLINE_NO_EXPORT E_Token
+JSON_INLINE_NO_EXPORT O_Token
 __read_string__(Lexer * self)
 {
     __advance__(self);
 
-    Token token = Token(TokenID_String, 0, &self->code[self->state.index]);
+    Token token = Token(TokenID_String, 0, __ref__(self));
 
     while(__char__(self) != '"')
     {
@@ -192,69 +148,63 @@ __read_string__(Lexer * self)
 
     __advance__(self);
 
-    return E_Token_Left(token);
+    return O_Token_Value(token);
 }
 
 
-JSON_INLINE_NO_EXPORT E_Token
+JSON_INLINE_NO_EXPORT O_Token
 __read_number__(Lexer * self)
 {
-    Token token = Token(.length = 0, .value = &self->code[self->state.index]);
-
-    if(tolower(__char__(self)) == 'e')
-    {
-        token.id = TokenID_Exp;
-        __advance__(self);
-    }
-    else if(__char__(self) == '.')
-    {
-        token.id = TokenID_Decimal;
-        __advance__(self);
-    }
-    else
-        token.id = TokenID_Integer;
+    Token token = Token(TokenID_Integer, 0, __ref__(self));
 
     if(__char__(self) == '+' || __char__(self) == '-')
-        __advance__(self);
-
-    while(isdigit(__char__(self)) == true || __char__(self) == '.')
     {
-        if(__char__(self) == '.')
+        token.length ++;
+        __advance__(self);
+    }
+
+    while(isdigit(__char__(self)) 
+        || __char__(self) == '.' 
+        || tolower(__char__(self)) == 'e')
+    {
+        if(__char__(self) == '.' )
         {
             if(token.id == TokenID_Decimal || token.id == TokenID_Exp)
-            {
-                return E_Token_Right(
-                            LexerError(
-                                LexerError_DecimaFormat
-                                , self->state.row
-                                , self->state.column));
-            }
+                return O_Token_Nothing;
             else
                 token.id = TokenID_Decimal;
+        }
+        if(tolower(__char__(self)) == 'e')
+        {
+            if(token.id == TokenID_Exp)
+                return O_Token_Nothing;
+            else
+                token.id = TokenID_Exp;
         }
 
         token.length++;
         __advance__(self);
     }   
 
-    return E_Token_Left(token);
+    return O_Token_Value(token);
 }
 
 
-JSON_INLINE_NO_EXPORT E_Token
+JSON_INLINE_NO_EXPORT O_Token
 __read_symbol__(Lexer * self)
 {
-    Token token = Token(TokenID_Symbol, 1, &self->code[self->state.index]);
+    Token token = Token(TokenID_Symbol, 1, __ref__(self));
     __advance__(self);
 
-    return E_Token_Left(token);
+    return O_Token_Value(token);
 }
 
 
-JSON_INLINE_NO_EXPORT E_Token
-__read_keyword(Lexer * self)
+JSON_INLINE_NO_EXPORT O_Token
+__read_keyword__(Lexer * self)
 {
-    Token token = Token(TokenID_Keyword, 0, &self->code[self->state.index]);
+    Token token = Token(TokenID_Keyword, 0, __ref__(self));
+
     while(__char__(self) != 0
             && isspace(__char__(self)) == false
             && __char__(self) != '{' 
@@ -270,11 +220,11 @@ __read_keyword(Lexer * self)
         __advance__(self);
     }
 
-    return E_Token_Left(token);
+    return O_Token_Value(token);
 }
 
 
-JSON_NO_EXPORT E_Token
+JSON_NO_EXPORT O_Token
 __next_token__(Lexer * self)
 {
     while(__char__(self) != '\0')
@@ -284,25 +234,16 @@ __next_token__(Lexer * self)
             __skip_whitespace__(self);
             continue;
         }
-
-        if(__char__(self) == '"')
+        else if(__char__(self) == '"')
             return __read_string__(self);
-        else if(isdigit(__char__(self))
-            || (__char__(self) == '+' 
-                && (isdigit(__peek__(self)) || __peek__(self) == '.'))
-            || (__char__(self) == '-'
-                && (isdigit(__peek__(self)) || __peek__(self) == '.'))
-            || (tolower(__char__(self)) == 'e'
-                && (isdigit(__peek__(self)) || __peek__(self) == '.'))
-            || (__char__(self) == '.' 
-                && isdigit(__peek__(self))))
-        {
+        else if(isdigit(__char__(self)))
             return __read_number__(self);
-        }
+        else if(__char__(self) == '+' && isdigit(__peek__(self)))
+            return __read_number__(self);
+        else if(__char__(self) == '-' && isdigit(__peek__(self)))
+            return __read_number__(self);
         else if(__char__(self) == '{')
-        {
             return __read_symbol__(self);
-        }
         else if(__char__(self) == '}')
             return __read_symbol__(self);
         else if(__char__(self) == '[')
@@ -314,45 +255,246 @@ __next_token__(Lexer * self)
         else if(__char__(self) == ':')
             return __read_symbol__(self);
         else 
-            return __read_keyword(self);
+            return __read_keyword__(self);
     }
 
-    return E_Token_Left(Token(TokenID_EOF, 0, '\0'));
+    return O_Token_Value(Token(TokenID_EOF, 0, '\0'));
 }
 
 
-typedef struct
+JSON_INLINE_NO_EXPORT Json *
+json_new(enum JsonID id)
 {
-    Lexer lexer;
-}JsonParser;
+    Json * json = malloc(sizeof(Json));
+    json->id    = id;
+
+    return json;
+}
+
+
+#define O_Json_Nothing (O_Json){.is_value = false}
+#define O_Json_Value(T)(O_Json){.is_value = true, .json = T}
+
+
+O_Json
+__parse__(Lexer * lexer)
+{
+    O_Token t = __next_token__(lexer);
+
+    if(t.is_value == false)
+        return O_Json_Nothing;
+    else if(t.token.id == TokenID_EOF)
+        return O_Json_Nothing;
+    else if(t.token.id == TokenID_Symbol)
+    {
+        if(strncmp(t.token.value, "{", 1) == 0)
+        {
+            Json * json = json_new(JsonObject);
+            json->object = NULL;
+            
+            for(size_t i = 0;; i++)
+            {
+                if(json->object == NULL)
+                    json->object = vector_new(sizeof(JsonPair), 1);
+                else
+                    json->object = vector_resize(VECTOR(json->object), i+1);
+
+                O_Token name = __next_token__(lexer);
+                                
+                if(name.is_value == false 
+                    || name.token.id != TokenID_String)
+                {
+                    json_delete(json);
+                    return O_Json_Nothing;
+                }
+                
+                json->object[i].name = strndup(name.token.value, name.token.length);
+
+                O_Token colon = __next_token__(lexer);
+                   
+                if(colon.is_value == false 
+                    || colon.token.id != TokenID_Symbol 
+                    || strncmp(colon.token.value, ":", colon.token.length) != 0)
+                {
+                    json_delete(json);
+                    return O_Json_Nothing;
+                }
+
+                O_Json value = __parse__(lexer);
+
+                if(value.is_value == false)
+                {
+                    json_delete(json);
+                    return O_Json_Nothing;
+                }
+                else
+                    json->object[i].value = value.json;
+
+                O_Token delimiter = __next_token__(lexer);
+
+                if(delimiter.is_value == false 
+                    || delimiter.token.id != TokenID_Symbol)
+                {
+                    json_delete(json);
+                    return O_Json_Nothing;
+                }
+
+                if(strncmp(delimiter.token.value, ",", 1) == 0)
+                    continue;
+                else if(strncmp(delimiter.token.value, "}", 1) == 0)
+                    break;
+                else
+                {
+                    json_delete(json);
+                    return O_Json_Nothing;
+                }
+            }
+
+            return O_Json_Value(json);
+        }
+        else if(strncmp(t.token.value, "[", 1) == 0)
+        {
+            Json * json = json_new(JsonArray);
+            json->array = NULL;            
+
+            for(size_t i = 0;; i++)
+            {
+                if(json->array == NULL)
+                    json->array = vector_new(sizeof(Json*), 1);
+                else
+                    json->array = vector_resize(VECTOR(json->array), i+1);
+
+                O_Json value = __parse__(lexer);
+
+                if(value.is_value == true)
+                    json->array[i] = value.json;
+                else
+                    return value;
+
+                O_Token delimiter = __next_token__(lexer);
+
+                if(delimiter.is_value == false 
+                    || delimiter.token.id != TokenID_Symbol)
+                {
+                    json_delete(json);
+                    return O_Json_Nothing;
+                }
+
+                if(strncmp(delimiter.token.value, "]", 1) == 0)
+                    break;
+                else if(strncmp(delimiter.token.value, ",", 1) == 0)
+                    continue;
+                else
+                {
+                    json_delete(json);
+                    return O_Json_Nothing;
+                }
+            }
+
+            return O_Json_Value(json);
+        }
+    }
+    else if(t.token.id == TokenID_String)
+    {
+        Json * json  = json_new(JsonString);
+        json->string = strndup(t.token.value, t.token.length);
+
+        return O_Json_Value(json);
+    }
+    else if(t.token.id == TokenID_Integer)
+    {
+        Json * json   = json_new(JsonInteger);
+        json->integer = atoi(t.token.value);
+
+        return O_Json_Value(json);
+    }
+    else if(t.token.id == TokenID_Decimal || t.token.id == TokenID_Exp)
+    {
+        Json * json = json_new(JsonFrac);
+        json->frac  = atof(t.token.value);
+
+        return O_Json_Value(json);
+    }
+    else if(t.token.id == TokenID_Keyword)
+    {
+        if(strncmp(t.token.value, "true", t.token.length) == 0)
+        {
+            Json * json   = json_new(JsonBool);
+            json->boolean = true;
+
+            return O_Json_Value(json);
+        }
+        else if(strncmp(t.token.value, "false", t.token.length) == 0)
+        {
+            Json * json   = json_new(JsonBool);
+            json->boolean = false;        
+
+            return O_Json_Value(json);
+        }   
+        else if(strncmp(t.token.value, "null", t.token.length) == 0)
+            return O_Json_Value(NULL);
+        else
+            return O_Json_Nothing;
+    }
+
+    return O_Json_Nothing;
+}
+
+
+O_Json 
+json_load_string(char * code)
+{
+    Lexer lexer = Lexer(code);
+    return __parse__(&lexer);
+}
+
+
+O_Json
+json_load_file(FILE * file)
+{
+    fseek(file, 0, SEEK_END);
+    size_t lenght = ftell(file);
+    fseek(file, 0, SEEK_SET); 
+
+    char * code = malloc(sizeof(char) * lenght + 1);
+    fread(code, lenght, 1, file);
+
+    O_Json json = json_load_string(code);
+    free(code);
+
+    return json;
+}
 
 
 void
-json_show_tokens(char * code)
+json_delete(Json * self)
 {
-    JsonParser parser = (JsonParser){.lexer=Lexer(code)};
+    if(self == NULL)
+        return;
 
-    for(E_Token t = __next_token__(&parser.lexer);; t = __next_token__(&parser.lexer))
+    switch(self->id)
     {
-        if(t.id == E_TokenID_Right)
-        {
-            printf("%d:%d: lexer eeror %d\n", t.right.row, t.right.column, t.right.error);
+        case JsonString:
+            free(self->string);
             break;
-        }
-        else
-        {
-            if(t.left.id == TokenID_EOF)
-                break;
-            else
+        case JsonArray:
+            for(size_t i = 0; i < VECTOR(self->array)->length; i++)
+                json_delete(self->array[i]);
+            break;
+        case JsonObject:
+            for(size_t i = 0; i < VECTOR(self->object)->length; i++)
             {
-                printf("Token {id=%s, length=%lld, value=\"", TOKEN_ID(t.left.id), t.left.length);
-                fwrite(t.left.value, sizeof(char), t.left.length, stdout);
-                puts("\"}");
+                free(self->object[i].name);
+                json_delete(self->object[i].value);
             }
-        }
+            break;
+        case JsonInteger:
+        case JsonBool:
+        case JsonFrac:
+            break;
     }
+
+    free(self);
 }
-
-
 
 

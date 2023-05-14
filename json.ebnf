@@ -1,0 +1,13 @@
+
+json      ::= object | array
+object    ::= "{" (pair ("," pair)*)? "}"
+pair      ::= string ":" value
+array     ::= "[" (value ("," value)*)? "]"
+value     ::= string | number | object | array | "true" | "false" | "null"
+string    ::= '"' char* '"'
+number    ::= int frac? exp?
+int       ::= digit | digit1-9 digits
+frac      ::= "." digits
+exp       ::= ("e" | "E") ("+" | "-")? digits
+digits    ::= digit*
+digit     ::= "0" | digit1-9
