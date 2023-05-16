@@ -20,8 +20,7 @@ main(void)
 
     if(j.is_value == true)
     {
-        json_delete(j.json);
-        printf("loaded\n");
+    //    json_delete(j.json);
     }
     else
         printf("error\n");

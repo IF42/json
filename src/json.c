@@ -10,8 +10,22 @@
 #include <stdlib.h>
 
 
-#define JSON_NO_EXPORT static
-#define JSON_INLINE_NO_EXPORT static inline
+#ifndef strndup
+char *
+strndup(const char * str, size_t n)
+{
+    char * copy = malloc(sizeof(char) * (n + 1));
+    size_t i;
+    
+    for(i = 0; i < n && str[i] != 0; i++)
+        copy[i] = str[i];
+
+    copy[i] = '\0';
+
+    return copy;
+}
+#endif
+
 
 typedef struct
 {
@@ -32,28 +46,38 @@ typedef struct
     (Lexer) {code, (LexerState){0, 1, 1, *code}}
 
 
-JSON_INLINE_NO_EXPORT LexerState
+static inline LexerState
 __store__(Lexer * self)
 {
     return self->state;
 }
 
 
-JSON_INLINE_NO_EXPORT void
+static inline void
 __restore__(Lexer * self, LexerState state)
 {
     self->state = state;
 }
 
 
-JSON_INLINE_NO_EXPORT char
+static inline int
 __char__(Lexer * self)
 {
     return self->state.character;
 }
 
-    
-JSON_NO_EXPORT void
+
+static int
+__peek__(Lexer * self)
+{
+    if(__char__(self) == '\0')
+        return '\0';
+    else
+        return self->code[self->state.index + 1];
+}
+
+
+static void
 __advance__(Lexer * self)
 {
     if(__char__(self) == '\0')
@@ -67,16 +91,6 @@ __advance__(Lexer * self)
         self->state.column ++;
 
     self->state.character = self->code[++self->state.index];
-}
-
-
-JSON_NO_EXPORT char
-__peek__(Lexer * self)
-{
-    if(__char__(self) == '\0')
-        return '\0';
-    else
-        return self->code[self->state.index + 1];
 }
 
 
@@ -114,14 +128,14 @@ typedef struct
 #define O_Token_Value(T) (O_Token){true, T}
 
 
-JSON_INLINE_NO_EXPORT char *
+static inline char *
 __ref__(Lexer * self)
 {
     return &self->code[self->state.index];
 }
 
 
-JSON_INLINE_NO_EXPORT void
+static inline void
 __skip_whitespace__(Lexer * self)
 {
     while(isspace(__char__(self)))
@@ -132,7 +146,7 @@ __skip_whitespace__(Lexer * self)
 /*
 ** TODO: treat excape sequences
 */
-JSON_INLINE_NO_EXPORT O_Token
+static inline O_Token
 __read_string__(Lexer * self)
 {
     __advance__(self);
@@ -157,7 +171,7 @@ __read_string__(Lexer * self)
 }
 
 
-JSON_INLINE_NO_EXPORT O_Token
+static inline O_Token
 __read_number__(Lexer * self)
 {
     Token token = Token(TokenID_Integer, 0, __ref__(self));
@@ -195,7 +209,7 @@ __read_number__(Lexer * self)
 }
 
 
-JSON_INLINE_NO_EXPORT O_Token
+static inline O_Token
 __read_symbol__(Lexer * self)
 {
     Token token = Token(TokenID_Symbol, 1, __ref__(self));
@@ -205,7 +219,7 @@ __read_symbol__(Lexer * self)
 }
 
 
-JSON_INLINE_NO_EXPORT O_Token
+static inline O_Token
 __read_keyword__(Lexer * self)
 {
     Token token = Token(TokenID_Keyword, 0, __ref__(self));
@@ -229,7 +243,7 @@ __read_keyword__(Lexer * self)
 }
 
 
-JSON_NO_EXPORT O_Token
+static O_Token
 __next_token__(Lexer * self)
 {
     while(__char__(self) != '\0')
@@ -263,11 +277,11 @@ __next_token__(Lexer * self)
             return __read_keyword__(self);
     }
 
-    return O_Token_Value(Token(TokenID_EOF, 0, '\0'));
+    return O_Token_Value(Token(TokenID_EOF, 0, NULL));
 }
 
 
-JSON_INLINE_NO_EXPORT Json *
+static inline Json *
 json_new(enum JsonID id)
 {
     Json * json = malloc(sizeof(Json));
@@ -494,7 +508,8 @@ json_delete(Json * self)
     switch(self->id)
     {
         case JsonString:
-            free(self->string);
+            if(self->string != NULL)
+                free(self->string);
             break;
         case JsonArray:
             if(self->array != NULL)
@@ -503,7 +518,6 @@ json_delete(Json * self)
                     json_delete(self->array[i]);
             }
             break;
-            
         case JsonObject:
             if(self->object != NULL)
             {

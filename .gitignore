@@ -3,6 +3,7 @@
 doc
 .cache/*
 *.swp
+*.so
 
 # Object files
 *.o
