@@ -26,6 +26,7 @@ strndup(const char * str, size_t n)
 }
 #endif
 
+
 size_t 
 __hash__(char * str)
 {
@@ -560,6 +561,7 @@ json_show(
             break;
         case JsonArray:
             fprintf(stream, "[");
+            
             if(self->array != NULL)
             {
                 for(size_t i = 0; i < VECTOR(self->array)->length; i++)
@@ -574,6 +576,7 @@ json_show(
 
                 }
             }
+
             fprintf(stream, "]");
             break;
         case JsonObject:
@@ -597,6 +600,7 @@ json_show(
             }
             else
                 fprintf(stream, "null");
+
             fprintf(stream, "\n}");
             break;
         case JsonInteger:
@@ -613,7 +617,6 @@ json_show(
             break;
     }
 }
-
 
 
 void
