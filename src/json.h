@@ -15,10 +15,10 @@
 typedef struct
 {
     char * name; 
+    size_t key;
+
     struct Json * value;
 }JsonPair;
-
-
 
 
 typedef struct Json
@@ -46,6 +46,16 @@ typedef struct Json
 }Json;
 
 
+#define JSON_TYPE(T)                    \
+    T == JsonInteger ? "JsonInteger":   \
+    T == JsonFrac    ? "JsonFrac":      \
+    T == JsonBool    ? "JsonBool":      \
+    T == JsonNull    ? "JsonNull":      \
+    T == JsonString  ? "JsonString":    \
+    T == JsonArray   ? "JsonArray":     \
+    T == JsonObject  ? "JsonObject":    \
+                       "Unknonw"
+
 typedef struct
 {
     bool is_value;
@@ -66,6 +76,18 @@ json_load_file(FILE * file);
         , char*: json_load_string   \
         , FILE*: json_load_file)    \
             (T)
+
+
+O_Json 
+json_lookup(
+    Json * self
+    , char * key);
+
+
+void
+json_show(
+    Json * self
+    , FILE * stream);
 
 
 void

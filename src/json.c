@@ -26,6 +26,23 @@ strndup(const char * str, size_t n)
 }
 #endif
 
+size_t 
+__hash__(char * str)
+{
+    if(str == NULL)
+        return 0;
+
+    size_t hash = 0;
+
+    while(*str != 0)
+    {
+        hash += *str;
+        str++;
+    }
+
+    return hash;
+}
+
 
 typedef struct
 {
@@ -34,6 +51,7 @@ typedef struct
     uint32_t column;
     char character;
 }LexerState;
+
 
 typedef struct
 {
@@ -347,7 +365,8 @@ __parse__(Lexer * lexer)
                     else
                         json->object = vector_resize(VECTOR(json->object), i+1);
 
-                    json->object[i].name = strndup(name.token.value, name.token.length);
+                    json->object[i].name  = strndup(name.token.value, name.token.length);
+                    json->object[i].key   = __hash__(json->object[i].name);
                     json->object[i].value = value.json;
                 }
                 else
@@ -497,6 +516,104 @@ json_load_file(FILE * file)
 
     return json;
 }
+
+
+O_Json 
+json_lookup(
+    Json * self
+    , char * key)
+{
+    if(self == NULL 
+        || self->id != JsonObject 
+        || self->object == NULL)
+    {
+        return O_Json_Nothing;
+    }
+
+    size_t hash = __hash__(key);
+
+    for(size_t i = 0; i < VECTOR(self->object)->length; i++)
+    {
+        if(self->object[i].key == hash)
+            return O_Json_Value(self->object[i].value);
+    }
+   
+    return O_Json_Nothing;
+}
+
+
+void
+json_show(
+    Json * self
+    , FILE * stream)
+{
+    if(stream == NULL)
+        return;
+    else if(self == NULL)
+        fprintf(stream, "null");
+
+    switch(self->id)
+    {
+        case JsonString:
+            if(self->string != NULL)
+                fprintf(stream, "%s", self->string);
+            break;
+        case JsonArray:
+            fprintf(stream, "[");
+            if(self->array != NULL)
+            {
+                for(size_t i = 0; i < VECTOR(self->array)->length; i++)
+                {
+                   if(i == 0)
+                        json_show(self->array[i], stream);
+                   else
+                   {
+                        fprintf(stream, ", ");
+                        json_show(self->array[i], stream);
+                   }
+
+                }
+            }
+            fprintf(stream, "]");
+            break;
+        case JsonObject:
+            fprintf(stream, "{\n");
+
+            if(self->object != NULL)
+            {
+                for(size_t i = 0; i < VECTOR(self->object)->length; i++)
+                {
+                    if(i == 0)
+                    {
+                        fprintf(stream, "\t%s: ", self->object[i].name);
+                        json_show(self->object[i].value, stream);
+                    }
+                    else
+                    {
+                        fprintf(stream, ",\n\t%s: ", self->object[i].name);
+                        json_show(self->object[i].value, stream);
+                    }
+                }
+            }
+            else
+                fprintf(stream, "null");
+            fprintf(stream, "\n}");
+            break;
+        case JsonInteger:
+            fprintf(stream, "%d", self->integer);
+            break;
+        case JsonBool:
+            fprintf(stream, "%s", self->boolean ? "true" : "false");
+            break;
+        case JsonFrac:
+            fprintf(stream, "%f", self->frac);
+            break;
+        case JsonNull:
+            fprintf(stream, "null");
+            break;
+    }
+}
+
 
 
 void

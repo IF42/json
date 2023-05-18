@@ -20,7 +20,18 @@ main(void)
 
     if(j.is_value == true)
     {
-    //    json_delete(j.json);
+        //json_show(j.json, stdout);
+
+        /*
+        printf("json type: %s\n", JSON_TYPE(j.json->id));
+        printf("array length: %zu\n", VECTOR(j.json->array)->length);
+
+        printf("json type of item at 0: %s\n", JSON_TYPE(j.json->array[0]->id));
+
+
+        json_show(json_lookup(j.json->array[1], "actor").json, stdout);
+        */
+        json_delete(j.json);
     }
     else
         printf("error\n");
