@@ -143,8 +143,8 @@ typedef struct
 }O_Token;
 
 
-#define O_Token_Nothing (O_Token){false}
-#define O_Token_Value(T) (O_Token){true, T}
+#define O_Token_Nothing (O_Token){.is_value=false}
+#define O_Token_Value(T) (O_Token){.is_value=true, .token=T}
 
 
 static inline char *
@@ -314,7 +314,145 @@ json_new(enum JsonID id)
 #define O_Json_Value(T)(O_Json){.is_value = true, .json = T}
 
 
-O_Json
+static O_Json
+__parse__(Lexer * lexer);
+
+
+static O_Json
+__parse_json_object__(Lexer * lexer)
+{
+    Json * json = json_new(JsonObject);
+    json->object = NULL;
+    
+    for(size_t i = 0;; i++)
+    {
+        O_Token name = __next_token__(lexer);
+                        
+        if(name.is_value == false)
+        {
+            json_delete(json);
+            return O_Json_Nothing;
+        }
+        if(name.token.id == TokenID_Symbol 
+            && strncmp(name.token.value, "}", 1) == 0)
+        {
+            return O_Json_Value(json);
+        }
+        else if(name.token.id != TokenID_String)
+            return O_Json_Nothing;
+        
+        O_Token colon = __next_token__(lexer);
+           
+        if(colon.is_value == false 
+            || colon.token.id != TokenID_Symbol 
+            || strncmp(colon.token.value, ":", colon.token.length) != 0)
+        {
+            json_delete(json);
+            return O_Json_Nothing;
+        }
+
+        O_Json value = __parse__(lexer);
+
+        if(value.is_value == true)
+        {
+            if(json->object == NULL)
+                json->object = vector_new(sizeof(JsonPair), 1);
+            else
+                json->object = vector_resize(VECTOR(json->object), i+1);
+
+            json->object[i].name  = strndup(name.token.value, name.token.length);
+            json->object[i].key   = __hash__(json->object[i].name);
+            json->object[i].value = value.json;
+        }
+        else
+        {
+            json_delete(json);
+            return O_Json_Nothing;
+        }
+        
+        O_Token delimiter = __next_token__(lexer);
+
+        if(delimiter.is_value == false 
+            || delimiter.token.id != TokenID_Symbol)
+        {
+            json_delete(json);
+            return O_Json_Nothing;
+        }
+
+        if(strncmp(delimiter.token.value, ",", 1) == 0)
+            continue;
+        else if(strncmp(delimiter.token.value, "}", 1) == 0)
+            break;
+        else
+        {
+            json_delete(json);
+            return O_Json_Nothing;
+        }
+    }
+
+    return O_Json_Value(json);
+}
+
+
+static O_Json
+__parse_json_array__(Lexer * lexer)
+{
+    Json * json = json_new(JsonArray);
+    json->array = NULL;            
+
+    for(size_t i = 0;; i++)
+    {
+        LexerState store = __store__(lexer);
+        O_Json value = __parse__(lexer);
+
+        if(value.is_value == true)
+        {
+            if(json->array == NULL)
+                json->array = vector_new(sizeof(Json*), 1);
+            else
+                json->array = vector_resize(VECTOR(json->array), i+1);
+            
+            json->array[i] = value.json;
+        }
+        else if(value.is_value == false && i > 0)
+            return O_Json_Nothing;
+        else
+            __restore__(lexer, store);
+
+        O_Token delimiter = __next_token__(lexer);
+        
+        if(delimiter.is_value == false 
+            || delimiter.token.id != TokenID_Symbol)
+        {
+            return O_Json_Nothing;
+        }
+
+        if(strncmp(delimiter.token.value, "]", 1) == 0)
+            break;
+        else if(strncmp(delimiter.token.value, ",", 1) == 0)
+            continue;
+        else
+        {
+            json_delete(json);
+            return O_Json_Nothing;
+        }
+    }
+
+    return O_Json_Value(json);
+}
+
+
+static inline O_Json
+__parse_json_bool__(bool value)
+{
+    Json * json   = json_new(JsonBool);
+    json->boolean = value;
+
+    return O_Json_Value(json);
+}
+
+
+static O_Json
 __parse__(Lexer * lexer)
 {
     O_Token t = __next_token__(lexer);
@@ -326,123 +464,9 @@ __parse__(Lexer * lexer)
     else if(t.token.id == TokenID_Symbol)
     {
         if(strncmp(t.token.value, "{", 1) == 0)
-        {
-            Json * json = json_new(JsonObject);
-            json->object = NULL;
-            
-            for(size_t i = 0;; i++)
-            {
-                O_Token name     = __next_token__(lexer);
-                                
-                if(name.is_value == false)
-                {
-                    json_delete(json);
-                    return O_Json_Nothing;
-                }
-                if(name.token.id == TokenID_Symbol 
-                    && strncmp(name.token.value, "}", 1) == 0)
-                {
-                    return O_Json_Value(json);
-                }
-                else if(name.token.id != TokenID_String)
-                    return O_Json_Nothing;
-                
-                O_Token colon = __next_token__(lexer);
-                   
-                if(colon.is_value == false 
-                    || colon.token.id != TokenID_Symbol 
-                    || strncmp(colon.token.value, ":", colon.token.length) != 0)
-                {
-                    json_delete(json);
-                    return O_Json_Nothing;
-                }
-
-                O_Json value = __parse__(lexer);
-
-                if(value.is_value == true)
-                {
-                    if(json->object == NULL)
-                        json->object = vector_new(sizeof(JsonPair), 1);
-                    else
-                        json->object = vector_resize(VECTOR(json->object), i+1);
-
-                    json->object[i].name  = strndup(name.token.value, name.token.length);
-                    json->object[i].key   = __hash__(json->object[i].name);
-                    json->object[i].value = value.json;
-                }
-                else
-                {
-                    json_delete(json);
-                    return O_Json_Nothing;
-                }
-                
-                O_Token delimiter = __next_token__(lexer);
-
-                if(delimiter.is_value == false 
-                    || delimiter.token.id != TokenID_Symbol)
-                {
-                    json_delete(json);
-                    return O_Json_Nothing;
-                }
-
-                if(strncmp(delimiter.token.value, ",", 1) == 0)
-                    continue;
-                else if(strncmp(delimiter.token.value, "}", 1) == 0)
-                    break;
-                else
-                {
-                    json_delete(json);
-                    return O_Json_Nothing;
-                }
-            }
-
-            return O_Json_Value(json);
-        }
+            return __parse_json_object__(lexer);
         else if(strncmp(t.token.value, "[", 1) == 0)
-        {
-            Json * json = json_new(JsonArray);
-            json->array = NULL;            
-
-            for(size_t i = 0;; i++)
-            {
-                LexerState store = __store__(lexer);
-                O_Json value = __parse__(lexer);
-
-                if(value.is_value == true)
-                {
-                    if(json->array == NULL)
-                        json->array = vector_new(sizeof(Json*), 1);
-                    else
-                        json->array = vector_resize(VECTOR(json->array), i+1);
-                    
-                    json->array[i] = value.json;
-                }
-                else if(value.is_value == false && i > 0)
-                    return O_Json_Nothing;
-                else
-                    __restore__(lexer, store);
-
-                O_Token delimiter = __next_token__(lexer);
-                
-                if(delimiter.is_value == false 
-                    || delimiter.token.id != TokenID_Symbol)
-                {
-                    return O_Json_Nothing;
-                }
-
-                if(strncmp(delimiter.token.value, "]", 1) == 0)
-                    break;
-                else if(strncmp(delimiter.token.value, ",", 1) == 0)
-                    continue;
-                else
-                {
-                    json_delete(json);
-                    return O_Json_Nothing;
-                }
-            }
-
-            return O_Json_Value(json);
-        }
+            return __parse_json_array__(lexer);
     }
     else if(t.token.id == TokenID_String)
     {
@@ -468,19 +492,9 @@ __parse__(Lexer * lexer)
     else if(t.token.id == TokenID_Keyword)
     {
         if(strncmp(t.token.value, "true", t.token.length) == 0)
-        {
-            Json * json   = json_new(JsonBool);
-            json->boolean = true;
-
-            return O_Json_Value(json);
-        }
+            return __parse_json_bool__(true);
         else if(strncmp(t.token.value, "false", t.token.length) == 0)
-        {
-            Json * json   = json_new(JsonBool);
-            json->boolean = false;        
-
-            return O_Json_Value(json);
-        }   
+            return __parse_json_bool__(false);
         else if(strncmp(t.token.value, "null", t.token.length) == 0)
         {
             Json * json = json_new(JsonNull);
