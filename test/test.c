@@ -21,11 +21,12 @@ main(void)
         return EXIT_FAILURE;
     }
     
-    Json * j = json_load(f);
+    Json * j = json_parse(f);
     fclose(f);
 
     if(j != NULL)
     {
+        printf("type: %s, size: %ld\n", JSON_TYPE(j->type), VECTOR(j->array)->length);
         json_show(j->array[0] , stdout);
         json_delete(j);
     }

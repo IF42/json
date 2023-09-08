@@ -25,7 +25,7 @@ typedef struct
 
 struct Json
 {
-    enum JsonID
+    enum JsonType
     {
         JsonInteger
         , JsonFrac
@@ -34,7 +34,7 @@ struct Json
         , JsonString
         , JsonArray
         , JsonObject
-    }id;
+    }type;
 
     union
     {
@@ -59,17 +59,17 @@ struct Json
                        "Unknonw"
 
 Json * 
-json_load_string(char * code);
+json_parse_string(char * code);
 
 
 Json * 
-json_load_file(FILE * file);
+json_parse_file(FILE * file);
 
 
-#define json_load(T)                \
-    _Generic((T)                    \
-        , char*: json_load_string   \
-        , FILE*: json_load_file)    \
+#define json_parse(T)                \
+    _Generic((T)                     \
+        , char*: json_parse_string   \
+        , FILE*: json_parse_file)    \
             (T)
 
 

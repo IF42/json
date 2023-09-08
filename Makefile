@@ -1,5 +1,5 @@
-CC=clang
-CFLAGS=-Wall -Wextra -pedantic -std=c2x -Ofast
+CC=gcc
+CFLAGS=-Wall -Wextra -pedantic -Ofast
 LIBS=-l:libvector.so
 
 INCLUDE_PATH=/usr/include/

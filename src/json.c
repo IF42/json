@@ -276,10 +276,10 @@ __next_token__(Lexer * self)
 
 
 static inline Json *
-json_new(enum JsonID id)
+json_new(enum JsonType type)
 {
     Json * json = malloc(sizeof(Json));
-    json->id    = id;
+    json->type    = type;
 
     return json;
 }
@@ -481,7 +481,7 @@ __parse__(Lexer * lexer)
 
 
 Json *
-json_load_string(char * code)
+json_parse_string(char * code)
 {
     Lexer lexer = Lexer(code);
     return __parse__(&lexer);
@@ -489,7 +489,7 @@ json_load_string(char * code)
 
 
 Json *
-json_load_file(FILE * file)
+json_parse_file(FILE * file)
 {
     fseek(file, 0, SEEK_END);
     size_t lenght = ftell(file);
@@ -498,7 +498,7 @@ json_load_file(FILE * file)
     char * code = malloc(sizeof(char) * lenght + 1);
     fread(code, lenght, 1, file);
 
-    Json * json = json_load_string(code);
+    Json * json = json_parse_string(code);
     free(code);
 
     return json;
@@ -511,7 +511,7 @@ json_lookup(
     , char * key)
 {
     if(self == NULL 
-        || self->id != JsonObject)
+        || self->type != JsonObject)
     {
         return NULL;
     }
@@ -539,7 +539,7 @@ __json_show__(
         return;
     }
 
-    switch(self->id)
+    switch(self->type)
     {
         case JsonString:
             if(self->string != NULL)
@@ -619,7 +619,7 @@ json_clone(Json * self)
 {
     Json * json = NULL;
 
-    switch(self->id)
+    switch(self->type)
     {
     case JsonNull:
         json = json_new(JsonNull);
@@ -656,7 +656,7 @@ json_delete(Json * self)
     if(self == NULL)
         return;
 
-    switch(self->id)
+    switch(self->type)
     {
         case JsonString:
             if(self->string != NULL)
