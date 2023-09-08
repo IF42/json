@@ -12,16 +12,18 @@
 #include <stdio.h>
 
 
-typedef struct
+typedef struct Json Json;
+
+typedef struct 
 {
     char * name; 
     size_t key;
 
-    struct Json * value;
+    Json * value;
 }JsonPair;
 
 
-typedef struct Json
+struct Json
 {
     enum JsonID
     {
@@ -40,10 +42,10 @@ typedef struct Json
         double frac;
         bool boolean;
         char * string;
-        Vector(struct Json*) * array;
+        Vector(Json *) * array;
         Vector(JsonPair) * object;
     };
-}Json;
+};
 
 
 #define JSON_TYPE(T)                    \
@@ -56,18 +58,11 @@ typedef struct Json
     T == JsonObject  ? "JsonObject":    \
                        "Unknonw"
 
-typedef struct
-{
-    bool is_value;
-    Json * json;
-}O_Json;
-
-
-O_Json 
+Json * 
 json_load_string(char * code);
 
 
-O_Json 
+Json * 
 json_load_file(FILE * file);
 
 
@@ -78,10 +73,14 @@ json_load_file(FILE * file);
             (T)
 
 
-O_Json 
+Json *
 json_lookup(
     Json * self
     , char * key);
+
+
+Json *
+json_clone(Json * self);
 
 
 void
