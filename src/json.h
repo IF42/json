@@ -7,26 +7,12 @@
 #ifndef _JSON_H_
 #define _JSON_H_
 
-#include <vector.h>
 #include <stdbool.h>
 #include <stdio.h>
 
 
-typedef struct Json Json;
-
-typedef struct 
-{
-    char * name; 
-    size_t key;
-
-    Json * value;
-}JsonPair;
-
-
-struct Json
-{
-    enum JsonType
-    {
+typedef struct Json {
+    enum JsonType {
         JsonInteger
         , JsonFrac
         , JsonBool
@@ -36,16 +22,12 @@ struct Json
         , JsonObject
     }type;
 
-    union
-    {
-        int integer;
-        double frac;
-        bool boolean;
+    union {
         char * string;
-        Vector(Json *) * array;
-        Vector(JsonPair) * object;
+        struct {size_t size; struct Json ** value;} array;
+        struct {size_t size; struct JsonObjectPair {char * name; size_t key; struct Json * value;} * pair;} object;
     };
-};
+}Json;
 
 
 #define JSON_TYPE(T)                    \
@@ -57,6 +39,43 @@ struct Json
     T == JsonArray   ? "JsonArray":     \
     T == JsonObject  ? "JsonObject":    \
                        "Unknonw"
+
+#define json_is_type(T, json_type)\
+    ((T) != NULL && (T)->type == json_type)
+
+
+Json * json_string_new(char * string);
+
+
+Json * json_bool_new(bool value);
+
+
+Json * json_integer_new(long value);
+
+
+Json * json_frac_new(double value);
+
+
+Json * json_null_new(void);
+
+
+Json * json_array_new(size_t size);
+
+
+bool json_array_append(Json * self, Json * value);
+
+
+Json * json_object_new(size_t size);
+
+
+bool json_object_append(Json * self, char * name, Json * value);
+
+
+bool json_object_set_record(Json * self, size_t index, char * name, Json * value);
+
+
+bool json_object_set(Json * self, char * name, Json * value);
+
 
 Json * 
 json_parse_string(char * code);

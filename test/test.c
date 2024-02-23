@@ -11,12 +11,10 @@
 
 
 int
-main(void)
-{
+main(void) {
     FILE * f = fopen(JSON_FILE, "r");
 
-    if(f == NULL)
-    {
+    if(f == NULL) {
         fprintf(stderr, "Can't open file: '%s'\n", JSON_FILE);
         return EXIT_FAILURE;
     }
@@ -24,10 +22,8 @@ main(void)
     Json * j = json_parse(f);
     fclose(f);
 
-    if(j != NULL)
-    {
-        printf("type: %s, size: %ld\n", JSON_TYPE(j->type), VECTOR(j->array)->length);
-        json_show(j->array[0] , stdout);
+    if(j != NULL) {
+        json_show(j->array.value[0] , stdout);
         json_delete(j);
     }
     else
@@ -37,3 +33,6 @@ main(void)
 
     return EXIT_SUCCESS;
 }
+
+
+

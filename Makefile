@@ -1,6 +1,14 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -pedantic -Ofast
-LIBS=-l:libvector.so
+LIBS=
+
+
+ifeq ($(OS),Windows_NT)
+	LIBS += -l:libvector.so 
+else
+	LIBS += -lvector
+endif
+
 
 INCLUDE_PATH=/usr/include/
 LIB_PATH=/usr/lib64/
@@ -44,7 +52,7 @@ exec: env $(T_OBJ) $(OBJ)
 
 install:
 	cp -v $(OUTPUT)/$(TARGET) $(LIB_PATH)/$(TARGET)
-	cp -v src/endian.h $(INCLUDE_PATH)/endian.h
+	cp -v src/json.h $(INCLUDE_PATH)/json.h
 
 
 env:
