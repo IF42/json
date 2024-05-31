@@ -77,12 +77,10 @@ bool json_object_set_record(Json * self, size_t index, char * name, Json * value
 bool json_object_set(Json * self, char * name, Json * value);
 
 
-Json * 
-json_parse_string(char * code);
+Json * json_parse_string(char * code);
 
 
-Json * 
-json_parse_file(FILE * file);
+Json * json_parse_file(FILE * file);
 
 
 #define json_parse(T)                \
@@ -92,24 +90,16 @@ json_parse_file(FILE * file);
             (T)
 
 
-Json *
-json_lookup(
-    Json * self
-    , char * key);
+Json * json_lookup(Json * self, char * path);
 
 
-Json *
-json_clone(Json * self);
+Json * json_clone(Json * self);
 
 
-void
-json_show(
-    Json * self
-    , FILE * stream);
+void json_show(Json * self, FILE * stream);
 
 
-void
-json_delete(Json * self);
+void json_delete(Json * self);
 
 
 #endif 

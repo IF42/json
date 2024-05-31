@@ -2,16 +2,18 @@ CC=gcc
 CFLAGS=-Wall -Wextra -pedantic -Ofast
 LIBS=
 
+INCLUDE_PATH=
+LIB_PATH=
 
-ifeq ($(OS),Windows_NT)
-	LIBS += -l:libvector.so 
+
+ifeq ($(UNAME), Linux)	
+	INCLUDE_PATH+=/usr/include/
+	LIB_PATH+=/usr/lib64/
 else
-	LIBS += -lvector
+	INCLUDE_PATH+=/usr/include/
+	LIB_PATH+=/usr/lib/
 endif
 
-
-INCLUDE_PATH=/usr/include/
-LIB_PATH=/usr/lib64/
 
 TARGET=libjson.a
 CACHE=.cache

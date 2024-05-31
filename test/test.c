@@ -23,7 +23,15 @@ main(void) {
     fclose(f);
 
     if(j != NULL) {
-        json_show(j->array.value[0] , stdout);
+        //json_show(j->array.value[0] , stdout);
+        char * key = "actor";
+
+        if(json_lookup(j->array.value[0], key) != NULL) {
+            json_show(json_lookup(j->array.value[0], key), stdout);
+        } else {
+            printf("can't find symbol: %s\n", key);
+        }
+
         json_delete(j);
     }
     else

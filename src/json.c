@@ -13,17 +13,14 @@
 #define INIT_SIZE 10
 
 
-size_t 
-__hash(char * str) {
+size_t __hash(char * str, size_t length) {
     if(str == NULL)
         return 0;
 
     size_t hash = 0;
 
-    while(*str != 0) {
-        hash += *str;
-        str++;
-    }
+    for(size_t i = 0; i < length; i++) 
+        hash ^= str[i];
 
     return hash;
 }
@@ -65,8 +62,7 @@ strndup(
 }
 */
 
-static int
-__peek(Lexer * self) {
+static int __peek(Lexer * self) {
     if(__char(self) == '\0')
         return '\0';
     else
@@ -74,15 +70,13 @@ __peek(Lexer * self) {
 }
 
 
-static void
-__advance(Lexer * self) {
+static void __advance(Lexer * self) {
     if(__char(self) == '\0')
         return;
     else if(__char(self) == '\n') {
         self->state.row ++;
         self->state.column = 1;
-    }
-    else
+    } else
         self->state.column ++;
 
     self->state.character = self->code[++self->state.index];
@@ -111,14 +105,12 @@ typedef struct {
 #define Token(...) (Token){__VA_ARGS__}
  
 
-static inline char *
-__ref(Lexer * self) {
+static inline char * __ref(Lexer * self) {
     return &self->code[self->state.index];
 }
 
 
-static inline void
-__skip_whitespace__(Lexer * self) {
+static inline void __skip_whitespace__(Lexer * self) {
     while(isspace(__char(self)))
         __advance(self);
 }
@@ -127,8 +119,7 @@ __skip_whitespace__(Lexer * self) {
 /*
  * TODO: treat excape sequences
  */
-static inline Token
-__read_string(Lexer * self) {
+static inline Token __read_string(Lexer * self) {
     __advance(self);
 
     Token token = Token(TokenID_String, self->state.index, __ref(self));
@@ -148,8 +139,7 @@ __read_string(Lexer * self) {
 }
 
 
-static inline Token
-__read_number(Lexer * self) {
+static inline Token __read_number(Lexer * self) {
     Token token = Token(TokenID_Integer, self->state.index, __ref(self));
 
     if(__char(self) == '+' || __char(self) == '-')
@@ -162,16 +152,15 @@ __read_number(Lexer * self) {
             if(token.id == TokenID_Decimal || token.id == TokenID_Exp) {
                 token.id = TokenID_Undefined;
                 return token;
-            }
-            else
+            } else
                 token.id = TokenID_Decimal;
         }
+
         if(tolower(__char(self)) == 'e') {
             if(token.id == TokenID_Exp) {
                 token.id = TokenID_Undefined;
                 return token;
-            }
-            else
+            } else
                 token.id = TokenID_Exp;
         }
 
@@ -184,8 +173,7 @@ __read_number(Lexer * self) {
 }
 
 
-static inline Token
-__read_symbol(Lexer * self) {
+static inline Token __read_symbol(Lexer * self) {
     Token token = Token(TokenID_Symbol, 1, __ref(self));
     __advance(self);
 
@@ -193,8 +181,7 @@ __read_symbol(Lexer * self) {
 }
 
 
-static inline Token
-__read_keyword(Lexer * self) {
+static inline Token __read_keyword(Lexer * self) {
     Token token = Token(TokenID_Keyword, self->state.index, __ref(self));
 
     while(isalnum(__char(self)))
@@ -206,14 +193,12 @@ __read_keyword(Lexer * self) {
 }
 
 
-static Token
-__next_token(Lexer * self) {
+static Token __next_token(Lexer * self) {
     while(__char(self) != '\0') {
         if(isspace(__char(self))) {
             __skip_whitespace__(self);
             continue;
-        }
-        else if(__char(self) == '"')
+        } else if(__char(self) == '"')
             return __read_string(self);
         else if(isdigit(__char(self))
                 || ((__char(self) == '+' || __char(self) == '-') && isdigit(__peek(self))))
@@ -238,8 +223,7 @@ __next_token(Lexer * self) {
 }
 
 
-static inline Json *
-json_new(enum JsonType type) {
+static inline Json * json_new(enum JsonType type) {
     Json * json = malloc(sizeof(Json));
     json->type    = type;
 
@@ -247,12 +231,10 @@ json_new(enum JsonType type) {
 }
 
 
-static Json *
-parse(Lexer * lexer);
+static Json * parse(Lexer * lexer);
 
 
-static Json *
-__parse_json_object(Lexer * lexer) {
+static Json *__parse_json_object(Lexer * lexer) {
     Json * json  = json_new(JsonObject);
     size_t i     = 0;
     
@@ -265,8 +247,7 @@ __parse_json_object(Lexer * lexer) {
         if(name.id == TokenID_Symbol 
             && strncmp(name.value, "}", 1) == 0) {
             return json;
-        }
-        else if(name.id != TokenID_String) {
+        } else if(name.id != TokenID_String) {
             json_delete(json);
             return NULL;
         }
@@ -285,19 +266,17 @@ __parse_json_object(Lexer * lexer) {
             if(json->object.size == 0) {
                 json->object.pair = malloc(sizeof(struct JsonObjectPair)*INIT_SIZE);
                 json->object.size = INIT_SIZE;
-            }
-            else if(i >= json->object.size) {
+            } else if(i >= json->object.size) {
                 json->object.pair = realloc(json->object.pair, sizeof(struct JsonObjectPair)*i*2);
                 json->object.size = i*2;
             }
 
             json->object.pair[i].name  = strndup(name.value, name.size);
-            json->object.pair[i].key   = __hash(json->object.pair[i].name);
+            json->object.pair[i].key   = __hash(name.value, name.size);
             json->object.pair[i].value = value;
             
             i++;
-        }
-        else {
+        } else {
             json_delete(json);
             return NULL;
         }
@@ -323,8 +302,7 @@ __parse_json_object(Lexer * lexer) {
 }
 
 
-static Json *
-__parse_json_array(Lexer * lexer) {
+static Json * __parse_json_array(Lexer * lexer) {
     Json * json = json_new(JsonArray);    
     size_t i = 0;
     
@@ -339,16 +317,14 @@ __parse_json_array(Lexer * lexer) {
             if(json->array.size == 0) {
                 json->array.value = malloc(sizeof(Json*) * INIT_SIZE);
                 json->array.size = INIT_SIZE;
-            }
-            else if(i >= json->array.size) {
+            } else if(i >= json->array.size) {
                 json->array.value = realloc(json->array.value, sizeof(Json*)*i*2);
                 json->array.size = i*2;
             }
 
             json->array.value[i] = value;
             i++;
-        }
-        else if(value == NULL && i > 0)
+        } else if(value == NULL && i > 0)
             return NULL;
         else
             lexer->state = store;
@@ -374,66 +350,53 @@ __parse_json_array(Lexer * lexer) {
 }
 
 
-static Json *
-parse(Lexer * lexer)
-{
+static Json * parse(Lexer * lexer) {
     Token token = __next_token(lexer);
 
     if(token.id == TokenID_EOF)
         return NULL;
     else if(token.id == TokenID_Symbol) {
-        if(strncmp(token.value, "{", 1) == 0)
+        if(strncmp(token.value, "{", 1) == 0) {
             return __parse_json_object(lexer);
-        else if(strncmp(token.value, "[", 1) == 0)
+        } else if(strncmp(token.value, "[", 1) == 0) {
             return __parse_json_array(lexer);
-    }
-    else if(token.id == TokenID_String) {
+        }
+    } else if(token.id == TokenID_String) {
         Json * json  = json_new(JsonString);
         json->string = strndup(token.value, token.size);
-
         return json;
-    }
-    else if(token.id == TokenID_Integer) {
-        Json * json   = json_new(JsonInteger);
+    } else if(token.id == TokenID_Integer) {
+        Json * json  = json_new(JsonInteger);
         json->string = strndup(token.value, token.size);
-
         return json;
-    }
-    else if(token.id == TokenID_Decimal || token.id == TokenID_Exp) {
+    } else if(token.id == TokenID_Decimal || token.id == TokenID_Exp) {
         Json * json = json_new(JsonFrac);
         json->string = strndup(token.value, token.size);
-
         return json;
-    }
-    else if(token.id == TokenID_Keyword) {
-        if(strncmp(token.value, "true", token.size) == 0
-            || strncmp(token.value, "false", token.size) == 0) {
+    } else if(token.id == TokenID_Keyword) {
+        if(strncmp(token.value, "true", token.size) == 0 || strncmp(token.value, "false", token.size) == 0) {
             Json * json = json_new(JsonBool);
             json->string = strndup(token.value, token.size);
-
             return json;
-        }
-        else if(strncmp(token.value, "null", token.size) == 0){
+        } else if(strncmp(token.value, "null", token.size) == 0){
             Json * json = json_new(JsonNull);
             return json;
-        }
-        else
+        } else {
             return NULL;
+        }
     }
             
     return NULL;
 }
 
 
-Json *
-json_parse_string(char * code) {
+Json * json_parse_string(char * code) {
     Lexer lexer = Lexer(code);
     return parse(&lexer);
 }
 
 
-Json *
-json_parse_file(FILE * file) {
+Json * json_parse_file(FILE * file) {
     fseek(file, 0, SEEK_END);
     size_t lenght = ftell(file);
     fseek(file, 0, SEEK_SET); 
@@ -448,30 +411,45 @@ json_parse_file(FILE * file) {
 }
 
 
-Json *
-json_lookup(
-    Json * self
-    , char * key) {
-    if(self == NULL 
-        || self->type != JsonObject) {
-        return NULL;
-    }
+typedef struct {
+    size_t length;
+    char * c_str;
+}Key;
 
-    size_t hash = __hash(key);
 
-    for(size_t i = 0; i < self->object.size; i ++) {
-        if(self->object.pair[i].key == hash)
-            return self->object.pair[i].value;
+static Key __next_key(char * c_str) {
+    Key key = {0, c_str};
+
+    while(c_str[key.length] != 0 && c_str[key.length] != '/')
+        key.length ++;
+
+    return key;
+}
+
+
+Json * json_lookup(Json * self, char * path) {
+    if(self == NULL || path == NULL || *path == 0) {
+        return self;
+    } else { 
+        if(*path == '/') {
+            path++;
+        }
+
+        Key key     = __next_key(path);    
+        size_t hash = __hash(key.c_str, key.length);
+
+        for(size_t i = 0; i < self->object.size; i ++) {
+            if(self->object.pair[i].key == hash) {
+                return json_lookup(self->object.pair[i].value, path + key.length);
+            }
+        }
     }
    
     return NULL;
 }
 
 
-static void
-__json_show(
-    Json * self
-    , FILE * stream) {
+static void __json_show(Json * self, FILE * stream) {
     if(self == NULL) {
         fprintf(stream, "null");
         return;
@@ -495,7 +473,7 @@ __json_show(
             
             if(self->object.pair != NULL) {
                 for(size_t i = 0; i < self->object.size; i++) {
-                    fprintf(stream, i == 0 ? "\'%s\': " : ", \'%s\': ", self->object.pair[i].name);
+                    fprintf(stream, i == 0 ? "\"%s\": " : ", \"%s\": ", self->object.pair[i].name);
                     __json_show(self->object.pair[i].value, stream);
                 }
             }
@@ -505,8 +483,10 @@ __json_show(
         case JsonInteger:
         case JsonBool:
         case JsonFrac:
-        case JsonString:
             fprintf(stream, "%s", self->string);
+            break;
+        case JsonString:
+            fprintf(stream, "\"%s\"", self->string);
             break;
         case JsonNull:
             fprintf(stream, "null");
@@ -515,10 +495,7 @@ __json_show(
 }
 
 
-void
-json_show(
-    Json * self
-    , FILE * stream) {
+void json_show(Json * self, FILE * stream) {
     if(stream == NULL)
         return;
 
@@ -596,9 +573,7 @@ Json * json_frac_new(double value) {
 Json * json_null_new(void) {
     Json * self = malloc(sizeof(Json));
 
-    *self = (Json) {
-        .type = JsonNull
-    };
+    *self = (Json) {.type = JsonNull};
 
     return self;
 }
@@ -651,7 +626,7 @@ bool json_object_append(Json * self, char * name, Json * value) {
         self->object.pair = realloc(self->object.pair, sizeof(struct JsonObjectPair) * self->object.size + 1);
 
         self->object.pair[self->object.size].name = strdup(name);
-        self->object.pair[self->object.size].key = __hash(name);
+        self->object.pair[self->object.size].key = __hash(name, strlen(name));
         self->object.pair[self->object.size].value = value;
 
         self->object.size ++;
@@ -663,16 +638,14 @@ bool json_object_append(Json * self, char * name, Json * value) {
 
 
 bool json_object_set_record(Json * self, size_t index, char * name, Json * value) {
-    if(self->type == JsonObject 
-        && index < self->object.size) {
-        
+    if(self->type == JsonObject && index < self->object.size) {
         if(self->object.pair[index].name != NULL)
             free(self->object.pair[index].name);
 
         json_delete(self->object.pair[index].value);
 
         self->object.pair[index].name = strdup(name);
-        self->object.pair[index].key = __hash(name);
+        self->object.pair[index].key = __hash(name, strlen(name));
         self->object.pair[index].value = value;
 
         return true;
@@ -683,12 +656,10 @@ bool json_object_set_record(Json * self, size_t index, char * name, Json * value
 
 
 bool json_object_set(Json * self, char * name, Json * value) {
-    if(self == NULL 
-        || self->type != JsonObject) {
+    if(self == NULL || self->type != JsonObject) 
         return NULL;
-    }
 
-    size_t hash = __hash(name);
+    size_t hash = __hash(name, strlen(name));
 
     for(size_t i = 0; i < self->object.size; i ++) {
         if(self->object.pair[i].key == hash) {
@@ -701,8 +672,7 @@ bool json_object_set(Json * self, char * name, Json * value) {
 }
 
 
-Json *
-json_clone(Json * self) {
+Json * json_clone(Json * self) {
     (void) self;
     Json * json = NULL;
 
@@ -710,8 +680,7 @@ json_clone(Json * self) {
 }
 
 
-void
-json_delete(Json * self) {
+void json_delete(Json * self) {
     if(self == NULL)
         return;
 

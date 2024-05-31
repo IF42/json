@@ -4,6 +4,7 @@ doc
 .cache/*
 *.swp
 *.so
+*.stackdump
 
 # Object files
 *.o
