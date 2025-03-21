@@ -1,18 +1,13 @@
+PLATFORM ?= linux_x86_64
+
 CC=gcc
-CFLAGS=-Wall -Wextra -pedantic -Ofast
-LIBS=
+CFLAGS += -Wall 
+CFLAGS += -Wextra 
+CFLAGS += -pedantic 
+CFLAGS += -O2
+CFLAGS += -Isrc
 
-INCLUDE_PATH=
-LIB_PATH=
-
-
-ifeq ($(UNAME), Linux)	
-	INCLUDE_PATH+=/usr/include/
-	LIB_PATH+=/usr/lib64/
-else
-	INCLUDE_PATH+=/usr/include/
-	LIB_PATH+=/usr/lib/
-endif
+LIBS += -lalloc
 
 
 TARGET=libjson.a
@@ -37,6 +32,7 @@ all: env $(OBJ)
 	ar -crs $(OUTPUT)/$(TARGET) $(OBJ)
 
 
+-include config/$(PLATFORM).mk
 -include dep.list
 
 
@@ -44,17 +40,18 @@ all: env $(OBJ)
 
 
 dep:
-	$(CC) -MM src/*.c test/*.c | sed 's|[a-zA-Z0-9_-]*\.o|$(CACHE)/&|' > dep.list
+	$(FIND) src test -name "*.c" | xargs $(CC) $(CFLAGS) -MM | sed 's|[a-zA-Z0-9_-]*\.o|$(CACHE)/&|' > dep.list
 
 
-exec: env $(T_OBJ) $(OBJ)
+exec: env $(T_OBJ) 
 	$(CC) $(CFLAGS) $(T_OBJ) $(OBJ) $(LIBS) -o $(OUTPUT)/test
 	$(OUTPUT)/test
 
 
 install:
-	cp -v $(OUTPUT)/$(TARGET) $(LIB_PATH)/$(TARGET)
-	cp -v src/json.h $(INCLUDE_PATH)/json.h
+	rm -rvf $(INDIR)/json
+	cp -v $(OUTPUT)/$(TARGET) $(LIBDIR)/$(TARGET)
+	cp -vr src/json $(INDIR)
 
 
 env:

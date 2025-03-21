@@ -1,2 +1,2 @@
-.cache/json.o: src/json.c src/json.h
-.cache/test.o: test/test.c
+.cache/json.o: src/json/json.c src/json/json.h
+.cache/test.o: test/test.c src/json/json.h
